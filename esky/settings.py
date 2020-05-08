@@ -1,19 +1,10 @@
-import glob
 import logging
 import logging.config
 import os
 
 from huey import SqliteHuey
 
-
-def get_example_notebooks(directory):
-    files = glob.glob(os.path.join(directory, '*'))
-    notebooks = {}
-    for path in files:
-        key = os.path.basename(path)
-        notebooks[key] = path
-
-    return notebooks
+from utils import get_example_notebooks
 
 
 class HueyConfig(object):
@@ -32,9 +23,9 @@ class AppConfig(object):
     if not os.path.exists(OUTPUT_DESTINATION):
         os.mkdir(OUTPUT_DESTINATION)
 
-    EXAMPLES_DIR = os.path.join(
-            os.path.dirname(os.path.abspath(__name__)), 'examples')
-    EXAMPLES_NOTEBOOKS = get_example_notebooks(EXAMPLES_DIR)
+    NOTEBOOKS_DIR = os.path.join(
+            os.path.dirname(os.path.abspath(__name__)), 'notebooks')
+    EXAMPLES_NOTEBOOKS = get_example_notebooks(NOTEBOOKS_DIR)
 
 
 huey = SqliteHuey(filename=HueyConfig.BROKER_URL)

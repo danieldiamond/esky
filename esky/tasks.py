@@ -1,5 +1,4 @@
-import functools
-import os
+import time
 
 import papermill
 from papermill.exceptions import PapermillExecutionError
@@ -7,37 +6,14 @@ from papermill.exceptions import PapermillExecutionError
 import jobs
 from settings import huey
 from settings import logger
+from utils import write_nb_to_html
 
 
-def preserve_cwd(func):
-    """To support artifacts notebooks might generate we run them in a directory.
-    To run them in a directory we chdir into it and back after executing
-    this function automates that process"""
-    # FROM: https://stackoverflow.com/a/170174
-    @functools.wraps(func)
-    def decorator(*args, **kwargs):
-        cwd = os.getcwd()
-        try:
-            yield func(*args, **kwargs)
-        finally:
-            os.chdir(cwd)
-
-    return decorator
-
-
-def _assert_path_notexist(path):
-    if os.path.exists(path):
-        raise FileExistsError(f'{path} already exists')
-
-
-@preserve_cwd
 @huey.task()
 def job_runner(job_id, input_notebook, output_notebook,
                output_dir, parameters, **papermill_args):
     """
-    Task to execute notebooks. This task changes the working directory to
-    {output_dir} and back to origin after function exists.
-    Hence the @preserve_cwd
+    Task to execute notebooks.
 
     Parameters
     ----------
@@ -60,13 +36,9 @@ def job_runner(job_id, input_notebook, output_notebook,
 
     job_status = jobs.JobStatus.RUNNING
 
+    # Execute Notebook
     try:
         logger.info('notebooks.executing.started', extra=log_context)
-
-        _assert_path_notexist(output_dir)
-        os.makedirs(output_dir)
-
-        os.chdir(output_dir)
 
         papermill.execute_notebook(
             input_notebook,
@@ -84,3 +56,33 @@ def job_runner(job_id, input_notebook, output_notebook,
         log_context.update(dict(job_status=job_status))
         logger.exception('notebooks.executing.error', extra=log_context)
         raise e
+
+    return {
+        "job_status": job_status,
+        "output_notebook": output_notebook
+    }
+
+
+@huey.task()
+def task_write_nb_to_html(filename):
+    write_nb_to_html(filename)
+
+
+@huey.task()
+def fake_quick_task():
+    logger.info('Consumer Logging fake quick task')
+    return {
+        "fake": "task",
+        "task_length": "quick"
+    }
+
+
+@huey.task()
+def fake_long_task():
+    logger.info('Consumer Logging fake long task: wait 10 seconds')
+    time.sleep(10)
+    logger.info('End of fake long task')
+    return {
+        "fake": "task",
+        "task_length": "10 seconds"
+    }
